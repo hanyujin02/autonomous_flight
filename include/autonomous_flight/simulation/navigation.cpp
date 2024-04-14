@@ -225,7 +225,7 @@ namespace AutoFlight{
 
 						// this->polyTraj_->updatePath(waypoints, startEndConditions);
 						this->polyTraj_->updatePath(this->predefinedGoal_, startEndConditions);
-						this->polyTraj_->makePlan(this->polyTrajMsg_); // no corridor constraint
+						this->polyTraj_->makePlan(this->polyTrajMsg_);
 
 						double dt = 0.1;//TODO::add in param?
 						nav_msgs::Path mpcInputTraj = this->polyTraj_->getTrajectory(dt);
@@ -259,7 +259,7 @@ namespace AutoFlight{
 							std::vector<Eigen::Vector3d> startEndConditions {startVel, startAcc, endVel, endAcc};
 
 							this->polyTraj_->updatePath(rrtPathMsgTemp, startEndConditions);
-							this->polyTraj_->makePlan(this->polyTrajMsg_); // no corridor constraint		
+							this->polyTraj_->makePlan(this->polyTrajMsg_); 
 							//TODO: Collision check or not
 							double dt = 0.1;//TODO::add in param?
 							nav_msgs::Path mpcInputTraj = this->polyTraj_->getTrajectory(dt);
@@ -281,7 +281,7 @@ namespace AutoFlight{
 							std::vector<Eigen::Vector3d> startEndConditions {startVel, startAcc, endVel, endAcc};
 
 							this->polyTraj_->updatePath(waypoints, startEndConditions);
-							this->polyTraj_->makePlan(this->polyTrajMsg_); // no corridor constraint
+							this->polyTraj_->makePlan(this->polyTrajMsg_); 
 
 							double dt = 0.1;//TODO::add in param?
 							nav_msgs::Path mpcInputTraj = this->polyTraj_->getTrajectory(dt);
@@ -584,6 +584,7 @@ namespace AutoFlight{
 				}
 			}
 			else if(this->goalReceived_){
+				this->trajectoryReady_ = false;
 				if(this->goalHasCollision()){
 					this->replan_ = false;
 					this->refTrajReady_ = false;
