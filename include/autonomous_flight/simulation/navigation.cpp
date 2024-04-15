@@ -328,8 +328,9 @@ namespace AutoFlight{
 					}
 				}
 			}
+			r.sleep();
 		}
-		r.sleep();
+		
 	}
 	void navigation::getCurrentStates(Eigen::Vector3d &currPos, Eigen::Vector3d &currVel){
 		currPos <<this->odom_.pose.pose.position.x, this->odom_.pose.pose.position.y, this->odom_.pose.pose.position.z;
