@@ -42,6 +42,7 @@ namespace AutoFlight{
 		ros::Publisher mpcTrajPub_;
 		ros::Publisher inputTrajPub_;
 		ros::Publisher inputTrajPointsPub_;
+		ros::Publisher goalPub_;
 
 		std::thread trajExeWorker_;
 		std::thread mpcWorker_;
@@ -58,9 +59,10 @@ namespace AutoFlight{
 		std::string trajSavePath_;
 		nav_msgs::Path predefinedGoal_;
 		int goalIdx_ = 0;
-		int repeatPath_;
+		int repeatPathNum_;
 		// navigation data
 		bool replan_ = false;
+		bool replanning_ = false;
 		bool needGlobalPlan_ = false;
 		bool globalPlanReady_ = false;
 		bool refTrajReady_ = false;
@@ -73,6 +75,7 @@ namespace AutoFlight{
 		nav_msgs::Path inputTrajMsg_;
 		bool trajectoryReady_ = false;
 		ros::Time trajStartTime_;
+		ros::Time trackingStartTime_;
 		double trajTime_; // current trajectory time
 		double prevInputTrajTime_ = 0.0;
 		double facingYaw_;
@@ -96,7 +99,6 @@ namespace AutoFlight{
 		void visCB(const ros::TimerEvent&);
 
 		void run();	
-		void getCurrentStates(Eigen::Vector3d &currPos, Eigen::Vector3d &currVel);
 		void getStartEndConditions(std::vector<Eigen::Vector3d>& startEndConditions);	
 		bool goalHasCollision();
 		bool hasCollision();
@@ -104,6 +106,7 @@ namespace AutoFlight{
 		nav_msgs::Path getCurrentTraj(double dt);
 		nav_msgs::Path getRestGlobalPath();
 		void publishInputTraj();
+		void publishGoal();
 	};
 }
 
