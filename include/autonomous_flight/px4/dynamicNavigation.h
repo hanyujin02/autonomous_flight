@@ -16,6 +16,7 @@
 #include <trajectory_planner/piecewiseLinearTraj.h>
 #include <trajectory_planner/bsplineTraj.h>
 #include <trajectory_planner/mpcPlanner.h>
+#include <trajectory_planner/test/planner_manager.h>
 
 namespace AutoFlight{
 	class dynamicNavigation : public flightBase{
@@ -28,6 +29,8 @@ namespace AutoFlight{
 		std::shared_ptr<trajPlanner::pwlTraj> pwlTraj_;
 		std::shared_ptr<trajPlanner::bsplineTraj> bsplineTraj_;
 		std::shared_ptr<trajPlanner::mpcPlanner> mpc_;
+		std::shared_ptr<ego_planner::PlanningVisualization> visualization_;
+		std::shared_ptr<ego_planner::EGOPlannerManager> vanillaEgoPlanner_;
 
 		ros::Timer mpcTimer_;
 		ros::Timer plannerTimer_;
@@ -50,6 +53,7 @@ namespace AutoFlight{
 		bool useFakeDetector_;
 		bool usePredictor_;
 		bool useGlobalPlanner_;
+		bool useEgoPlanner_;
 		bool useMPCPlanner_;
 		bool noYawTurning_;
 		bool useYawControl_;

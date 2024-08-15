@@ -10,7 +10,7 @@ namespace AutoFlight{
 		this->initParam();
 		this->initModules();
 		this->registerPub();
-		if (this->useFakeDetector_){
+		if (this->useFakeDetector_ and not this->useEgoPlanner_){
 			// free map callback
 			this->freeMapTimer_ = this->nh_.createTimer(ros::Duration(0.01), &dynamicNavigation::freeMapCB, this);
 		}
@@ -45,6 +45,15 @@ namespace AutoFlight{
 		}
 		else{
 			cout << "[AutoFlight]: Global planner use is set to: " << this->useGlobalPlanner_ << "." << endl;
+		}
+
+		// use ego planner or not
+		if (not this->nh_.getParam("autonomous_flight/use_ego_planner", this->useEgoPlanner_)){
+			this->useEgoPlanner_ = false;
+			cout << "[AutoFlight]: No use ego planner param found. Use default: false." << endl;
+		}
+		else{
+			cout << "[AutoFlight]: Ego planner use is set to: " << this->useEgoPlanner_ << "." << endl;
 		}
 
 		//Use MPC Planner
@@ -197,7 +206,13 @@ namespace AutoFlight{
 			this->mpc_->updateMaxAcc(this->desiredAcc_);
 			this->mpc_->setMap(this->map_);
 		}
+		
 		else{
+			if(this->useEgoPlanner_){
+				this->visualization_.reset(new ego_planner::PlanningVisualization(this->nh_));
+				this->vanillaEgoPlanner_.reset(new ego_planner::EGOPlannerManager ());
+				this->vanillaEgoPlanner_->initPlanModules(this->nh_, this->visualization_);
+			}
 			// initialize bspline trajectory planner
 			this->bsplineTraj_.reset(new trajPlanner::bsplineTraj (this->nh_));
 			this->bsplineTraj_->setMap(this->map_);
@@ -386,8 +401,95 @@ namespace AutoFlight{
 
 	void dynamicNavigation::plannerCB(const ros::TimerEvent&){
 		if (not this->firstGoal_) return;
+		if (this->useEgoPlanner_){
+			if (this->replan_){
+				std::vector<Eigen::Vector3d> egoBsplineStartEndConditions;
+				this->getStartEndConditions(egoBsplineStartEndConditions); 
 
-		if (this->replan_){
+				Eigen::MatrixXd egoCpts;
+				Eigen::MatrixXd vanillaEgoCpts;
+				double vanillaEgoTs;
+				nav_msgs::Path vanillaInputTraj;
+				vanillaInputTraj.header.frame_id = "map";
+				vanillaInputTraj.header.stamp = ros::Time::now();
+				Eigen::MatrixXd controlPointsBefore;
+				Eigen::MatrixXd egoControlPointsBefore;
+				Eigen::Vector3d startPt = this->currPos_;
+				Eigen::Vector3d goalPt(this->goal_.pose.position.x, this->goal_.pose.position.y, this->goal_.pose.position.z);
+				Eigen::Vector3d startVel = egoBsplineStartEndConditions[0];
+				Eigen::Vector3d startAcc = egoBsplineStartEndConditions[2];
+				Eigen::Vector3d goalVel = egoBsplineStartEndConditions[1];
+				std::vector<Eigen::Vector3d> inputPointSet;
+
+				bool planSuccessVanilla = this->vanillaEgoPlanner_->reboundReplan(startPt, startVel, startAcc, goalPt, goalVel,  true, false, vanillaEgoCpts, vanillaEgoTs, inputPointSet, egoControlPointsBefore, egoBsplineStartEndConditions);
+				vanillaInputTraj.poses.clear();
+				for (int i=0; i<int(inputPointSet.size()); ++i){
+					geometry_msgs::PoseStamped ps;
+					ps.pose.position.x = inputPointSet[i](0);
+					ps.pose.position.y = inputPointSet[i](1);
+					ps.pose.position.z = inputPointSet[i](2);
+					vanillaInputTraj.poses.push_back(ps);
+				}
+				// }
+				this->inputTrajMsg_ = vanillaInputTraj;
+				if (planSuccessVanilla){
+					bool updateSuccess = this->bsplineTraj_->updatePath(vanillaInputTraj, egoBsplineStartEndConditions);
+					// if (obstaclesPos.size() != 0 and updateSuccess){
+					// 	this->bsplineTraj_->updateDynamicObstacles(obstaclesPos, obstaclesVel, obstaclesSize);
+					// }
+					// if (updateSuccess){
+
+						// ego gradient
+						nav_msgs::Path bsplineTrajMsgTemp;
+						bool egoPlanSuccess = this->bsplineTraj_->makePlanEgoGradient(bsplineTrajMsgTemp);
+						// bool egoPlanSuccess = this->bsplineTraj_->makePlanEgoGradient();
+						// egoCpts = this->bsplineTraj_->getControlPoints();
+						if (egoPlanSuccess){
+							this->bsplineTrajMsg_ = bsplineTrajMsgTemp;
+							this->trajStartTime_ = ros::Time::now();
+							this->trajTime_ = 0.0; // reset trajectory time
+							this->trajectory_ = this->bsplineTraj_->getTrajectory();
+							this->trajectoryReady_ = true;
+							this->replan_ = false;
+						}
+						else{
+							// if the current trajectory is still valid, then just ignore this iteration
+							// if the current trajectory/or new goal point is assigned is not valid, then just stop
+							if (this->hasCollision()){
+								this->trajectoryReady_ = false;
+								this->stop();
+								cout << "[AutoFlight]: Stop!!! Trajectory generation fails." << endl;
+								this->replan_ = true;
+							}
+							else if (this->hasDynamicCollision()){
+								this->trajectoryReady_ = false;
+								this->stop();
+								cout << "[AutoFlight]: Stop!!! Trajectory generation fails. Replan for dynamic obstacles." << endl;
+								this->replan_ = true;
+							}
+							else{
+								if (this->trajectoryReady_){
+									cout << "[AutoFlight]: Trajectory fail. Use trajectory from previous iteration." << endl;
+									this->replan_ = false;
+								}
+								else{
+									cout << "[AutoFlight]: Unable to generate a feasible trajectory. Please provide a new goal." << endl;
+									this->replan_ = false;
+								}
+							}
+						}
+					}
+				else{
+					this->trajectoryReady_ = false;
+					this->stop();
+					this->replan_ = false;
+					cout << "[AutoFlight]: Goal is not valid. Stop." << endl;
+					}
+					
+				}
+		}
+		else{
+			if (this->replan_){
 			std::vector<Eigen::Vector3d> obstaclesPos, obstaclesVel, obstaclesSize;
 			if (this->useFakeDetector_){
 				Eigen::Vector3d robotSize;
@@ -585,7 +687,7 @@ namespace AutoFlight{
 					this->bsplineTrajMsg_ = bsplineTrajMsgTemp;
 					this->trajStartTime_ = ros::Time::now();
 					this->trajTime_ = 0.0; // reset trajectory time
-					this->trajectory_ = this->bsplineTraj_->getTrajectory();
+					// this->trajectory_ = this->bsplineTraj_->getTrajectory();
 					this->trajectoryReady_ = true;
 					this->replan_ = false;
 					cout << "\033[1;32m[AutoFlight]: Trajectory generated successfully.\033[0m " << endl;
@@ -623,6 +725,7 @@ namespace AutoFlight{
 				this->replan_ = false;
 				cout << "[AutoFlight]: Goal is not valid. Stop." << endl;
 			}
+		}
 		}
 	}
 
