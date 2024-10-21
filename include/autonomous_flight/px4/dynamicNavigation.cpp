@@ -10,7 +10,7 @@ namespace AutoFlight{
 		this->initParam();
 		this->initModules();
 		this->registerPub();
-		if (this->useFakeDetector_){
+		if (this->useFakeDetector_ and not this->useEgoPlanner_){
 			// free map callback
 			// this->freeMapTimer_ = this->nh_.createTimer(ros::Duration(0.01), &dynamicNavigation::freeMapCB, this);
 		}
@@ -45,6 +45,15 @@ namespace AutoFlight{
 		}
 		else{
 			cout << "[AutoFlight]: Global planner use is set to: " << this->useGlobalPlanner_ << "." << endl;
+		}
+
+		// use ego planner or not
+		if (not this->nh_.getParam("autonomous_flight/use_ego_planner", this->useEgoPlanner_)){
+			this->useEgoPlanner_ = false;
+			cout << "[AutoFlight]: No use ego planner param found. Use default: false." << endl;
+		}
+		else{
+			cout << "[AutoFlight]: Ego planner use is set to: " << this->useEgoPlanner_ << "." << endl;
 		}
 
 		// use ego planner or not
@@ -840,7 +849,7 @@ if (this->replan_){
 					this->bsplineTrajMsg_ = bsplineTrajMsgTemp;
 					this->trajStartTime_ = ros::Time::now();
 					this->trajTime_ = 0.0; // reset trajectory time
-					this->trajectory_ = this->bsplineTraj_->getTrajectory();
+					// this->trajectory_ = this->bsplineTraj_->getTrajectory();
 					this->trajectoryReady_ = true;
 					this->replan_ = false;
 					cout << "\033[1;32m[AutoFlight]: Trajectory generated successfully.\033[0m " << endl;
