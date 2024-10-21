@@ -1,6 +1,6 @@
 simulation: true
 takeoff_height: 1.0 # m
-use_global_planner: false
+use_global_planner: true
 use_mpc_planner: false # if set true, will use MPC as the local planner instead of bspline
 no_yaw_turning: false
 use_yaw_control: false

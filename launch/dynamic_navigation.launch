@@ -6,6 +6,7 @@
 	<rosparam file="$(find autonomous_flight)/cfg/dynamic_navigation/mapping_param.yaml" ns="/dynamic_map" />
 	<rosparam file="$(find autonomous_flight)/cfg/dynamic_navigation/dynamic_detector_param.yaml" ns="/onboard_detector" />
 	<rosparam file="$(find autonomous_flight)/cfg/dynamic_navigation/predictor_param.yaml" ns="/dynamic_predictor" />
+	<rosparam file="$(find trajectory_planner)/include/trajectory_planner/test/ego_planner_param.yaml"/>
 
 	<node pkg="tracking_controller" type="tracking_controller_node" name="tracking_controller_node" output="screen" />
 	<node pkg="autonomous_flight" type="dynamic_navigation_node" name="dynamic_navigation_node" output="screen" />

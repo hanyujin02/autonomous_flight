@@ -16,6 +16,7 @@
 #include <trajectory_planner/piecewiseLinearTraj.h>
 #include <trajectory_planner/bsplineTraj.h>
 #include <trajectory_planner/mpcPlanner.h>
+#include <trajectory_planner/test/planner_manager.h>
 
 namespace AutoFlight{
 	class dynamicNavigation : public flightBase{
@@ -28,6 +29,8 @@ namespace AutoFlight{
 		std::shared_ptr<trajPlanner::pwlTraj> pwlTraj_;
 		std::shared_ptr<trajPlanner::bsplineTraj> bsplineTraj_;
 		std::shared_ptr<trajPlanner::mpcPlanner> mpc_;
+		std::shared_ptr<ego_planner::PlanningVisualization> visualization_;
+		std::shared_ptr<ego_planner::EGOPlannerManager> vanillaEgoPlanner_;
 
 		ros::Timer mpcTimer_;
 		ros::Timer plannerTimer_;
@@ -35,6 +38,7 @@ namespace AutoFlight{
 		ros::Timer trajExeTimer_;
 		ros::Timer visTimer_;
 		ros::Timer freeMapTimer_;
+		ros::Timer collisionCheckTimer_;
 
 		ros::Publisher rrtPathPub_;
 		ros::Publisher polyTrajPub_;
@@ -50,6 +54,7 @@ namespace AutoFlight{
 		bool useFakeDetector_;
 		bool usePredictor_;
 		bool useGlobalPlanner_;
+		bool useEgoPlanner_;
 		bool useMPCPlanner_;
 		bool noYawTurning_;
 		bool useYawControl_;
@@ -86,6 +91,9 @@ namespace AutoFlight{
 		bool firstTimeSave_ = false;
 		bool lastDynamicObstacle_ = false;
 		ros::Time lastDynamicObstacleTime_;
+		ros::Time lastDynamicCollision_ = ros::Time::now();
+		int collisionRate_ = 0;
+		int numGoals_ = 0;
 		
 	public:
 		dynamicNavigation(const ros::NodeHandle& nh);
@@ -100,6 +108,7 @@ namespace AutoFlight{
 		void trajExeCB(const ros::TimerEvent&);
 		void visCB(const ros::TimerEvent&);
 		void freeMapCB(const ros::TimerEvent&); // using fake detector
+		void collisionCB(const ros::TimerEvent&);
 
 		void run();	
 		void getStartEndConditions(std::vector<Eigen::Vector3d>& startEndConditions);	

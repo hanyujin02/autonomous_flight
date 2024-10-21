@@ -12,7 +12,7 @@ namespace AutoFlight{
 		this->registerPub();
 		if (this->useFakeDetector_){
 			// free map callback
-			this->freeMapTimer_ = this->nh_.createTimer(ros::Duration(0.01), &dynamicNavigation::freeMapCB, this);
+			// this->freeMapTimer_ = this->nh_.createTimer(ros::Duration(0.01), &dynamicNavigation::freeMapCB, this);
 		}
 		
 	}
@@ -45,6 +45,15 @@ namespace AutoFlight{
 		}
 		else{
 			cout << "[AutoFlight]: Global planner use is set to: " << this->useGlobalPlanner_ << "." << endl;
+		}
+
+		// use ego planner or not
+		if (not this->nh_.getParam("autonomous_flight/use_ego_planner", this->useEgoPlanner_)){
+			this->useEgoPlanner_ = false;
+			cout << "[AutoFlight]: No use ego planner param found. Use default: false." << endl;
+		}
+		else{
+			cout << "[AutoFlight]: Ego planner use is set to: " << this->useEgoPlanner_ << "." << endl;
 		}
 
 		//Use MPC Planner
@@ -146,6 +155,8 @@ namespace AutoFlight{
 				cout << "[AutoFlight]: Goal is set to: " << goal.pose.position.x <<", "<< goal.pose.position.y<<", "<< goal.pose.position.z << "." << endl;
 			}
 			this->predefinedGoal_.poses = pathTemp;
+			this->numGoals_ = this->predefinedGoal_.poses.size();
+			this->goal_ = this->predefinedGoal_.poses[0];
 		}
 
 		// whether or not to repeat tracking predefined path
@@ -193,11 +204,17 @@ namespace AutoFlight{
 
 		if (this->useMPCPlanner_){
 			this->mpc_.reset(new trajPlanner::mpcPlanner (this->nh_));
-			this->mpc_->updateMaxVel(this->desiredVel_*1.5);
-			this->mpc_->updateMaxAcc(this->desiredAcc_);
+			this->mpc_->updateMaxVel(this->desiredVel_*2);
+			this->mpc_->updateMaxAcc(this->desiredAcc_*1);
 			this->mpc_->setMap(this->map_);
 		}
+		
 		else{
+			if(this->useEgoPlanner_){
+				this->visualization_.reset(new ego_planner::PlanningVisualization(this->nh_));
+				this->vanillaEgoPlanner_.reset(new ego_planner::EGOPlannerManager ());
+				this->vanillaEgoPlanner_->initPlanModules(this->nh_, this->visualization_);
+			}
 			// initialize bspline trajectory planner
 			this->bsplineTraj_.reset(new trajPlanner::bsplineTraj (this->nh_));
 			this->bsplineTraj_->setMap(this->map_);
@@ -239,6 +256,8 @@ namespace AutoFlight{
 
 		// visualization callback
 		this->visTimer_ = this->nh_.createTimer(ros::Duration(0.033), &dynamicNavigation::visCB, this);
+
+		this->collisionCheckTimer_ = this->nh_.createTimer(ros::Duration(0.01), &dynamicNavigation::collisionCB, this);
 	}
 
 	void dynamicNavigation::mpcCB(){
@@ -384,10 +403,241 @@ namespace AutoFlight{
 		}
 	}
 
+	void dynamicNavigation::collisionCB(const ros::TimerEvent&){
+		// if (this->replan_){
+			// if (this->useMPCPlanner_){
+				std::vector<Eigen::Vector3d> obstaclesPos, obstaclesVel, obstaclesSize;
+				if (this->useFakeDetector_){
+					Eigen::Vector3d robotSize;
+					this->map_->getRobotSize(robotSize);
+					this->getDynamicObstacles(obstaclesPos, obstaclesVel, obstaclesSize, robotSize);
+				}
+				else{ 
+					this->map_->getDynamicObstacles(obstaclesPos, obstaclesVel, obstaclesSize);
+				}
+				// double dt = this->mpc_->getTs();
+				ros::Time currTime = ros::Time::now();
+				// double startTime = std::min(1.0, (currTime-this->trajStartTime_).toSec());
+				// double endTime = std::min(startTime+1.0, this->mpc_->getHorizon()*dt);
+				// for (double t=startTime; t<=endTime; t+=dt){
+				// 	Eigen::Vector3d p = this->mpc_->getPos(t);
+				bool collision = false;
+					Eigen::Vector3d p = this->currPos_;
+					// cout<<this->currPos_<<endl;
+					for (size_t i=0; i<obstaclesPos.size(); ++i){
+						Eigen::Vector3d ob = obstaclesPos[i];
+						Eigen::Vector3d size = obstaclesSize[i];
+						Eigen::Vector3d lowerBound = ob - size/2;
+						Eigen::Vector3d upperBound = ob + size/2;
+						if (p(0) >= lowerBound(0) and p(0) <= upperBound(0) and
+							p(1) >= lowerBound(1) and p(1) <= upperBound(1) and
+							p(2) >= lowerBound(2) and p(2) <= upperBound(2)){
+							collision = true;
+
+							break;
+						}			
+					}
+					if (this->map_->isInflatedOccupied(this->currPos_)){
+						collision = true;
+					}
+
+				// }
+				// cout<<"num collision: "<<this->collisionRate_<<endl;
+				ros::Time time = ros::Time::now();
+				if ((time-this->lastDynamicCollision_).toSec() >=0.5 and collision ==true){
+					this->collisionRate_ += 1;
+					cout<<"num collision: "<<this->collisionRate_<<endl;
+				}
+				if (collision ==true){
+				this->lastDynamicCollision_ = time;
+				}
+				
+			// }
+
+		// }
+	}
+
 	void dynamicNavigation::plannerCB(const ros::TimerEvent&){
 		if (not this->firstGoal_) return;
+		if (this->useEgoPlanner_){
+			if (this->replan_){
+				nav_msgs::Path inputTraj;
+				inputTraj.header.frame_id = "map";
+				inputTraj.header.stamp = ros::Time::now();					
+				std::vector<Eigen::Vector3d> startEndConditions;
+				this->getStartEndConditions(startEndConditions); 
+				double initTs = this->bsplineTraj_->getInitTs();
+				double finalTime;
+				if (not this->trajectoryReady_){
 
-		if (this->replan_){
+					Eigen::MatrixXd egoCpts;
+					Eigen::MatrixXd vanillaEgoCpts;
+					double vanillaEgoTs;
+					
+					
+					Eigen::MatrixXd controlPointsBefore;
+					Eigen::MatrixXd egoControlPointsBefore;
+					Eigen::Vector3d startPt = this->currPos_;
+					Eigen::Vector3d goalPt(this->goal_.pose.position.x, this->goal_.pose.position.y, this->goal_.pose.position.z);
+					Eigen::Vector3d startVel = startEndConditions[0];
+					Eigen::Vector3d startAcc = startEndConditions[2];
+					Eigen::Vector3d goalVel = startEndConditions[1];
+					std::vector<Eigen::Vector3d> inputPointSet;
+
+					bool planSuccessVanilla = this->vanillaEgoPlanner_->reboundReplan(startPt, startVel, startAcc, goalPt, goalVel,  true, false, vanillaEgoCpts, vanillaEgoTs, inputPointSet, egoControlPointsBefore, startEndConditions);
+					inputTraj.poses.clear();
+					for (int i=0; i<int(inputPointSet.size()); ++i){
+						geometry_msgs::PoseStamped ps;
+						ps.pose.position.x = inputPointSet[i](0);
+						ps.pose.position.y = inputPointSet[i](1);
+						ps.pose.position.z = inputPointSet[i](2);
+						inputTraj.poses.push_back(ps);
+					}
+				}
+				else{
+						Eigen::Vector3d bsplineLastPos = this->trajectory_.at(this->trajectory_.getDuration());
+						geometry_msgs::PoseStamped lastPs; lastPs.pose.position.x = bsplineLastPos(0); lastPs.pose.position.y = bsplineLastPos(1); lastPs.pose.position.z = bsplineLastPos(2);
+						Eigen::Vector3d goalPos (this->goal_.pose.position.x, this->goal_.pose.position.y, this->goal_.pose.position.z);
+						// check the distance between last point and the goal position
+						if ((bsplineLastPos - goalPos).norm() >= 0.2){ // use polynomial trajectory to make the rest of the trajectory
+							nav_msgs::Path waypoints, polyTrajTemp;
+							waypoints.poses = std::vector<geometry_msgs::PoseStamped>{lastPs, this->goal_};
+							std::vector<Eigen::Vector3d> polyStartEndConditions;
+							Eigen::Vector3d polyStartVel = this->trajectory_.getDerivative().at(this->trajectory_.getDuration());
+							Eigen::Vector3d polyEndVel (0.0, 0.0, 0.0);
+							Eigen::Vector3d polyStartAcc = this->trajectory_.getDerivative().getDerivative().at(this->trajectory_.getDuration());
+							Eigen::Vector3d polyEndAcc (0.0, 0.0, 0.0);
+							polyStartEndConditions.push_back(polyStartVel);
+							polyStartEndConditions.push_back(polyEndVel);
+							polyStartEndConditions.push_back(polyStartAcc);
+							polyStartEndConditions.push_back(polyEndAcc);
+							this->polyTraj_->updatePath(waypoints, polyStartEndConditions);
+							this->polyTraj_->makePlan(false); // no corridor constraint
+							
+							nav_msgs::Path adjustedInputCombinedTraj;
+							bool satisfyDistanceCheck = false;
+							double dtTemp = initTs;
+							double finalTimeTemp;
+							ros::Time startTime = ros::Time::now();
+							ros::Time currTime;
+							while (ros::ok()){
+								currTime = ros::Time::now();
+								if ((currTime - startTime).toSec() >= 0.05){
+									cout << "[AutoFlight]: Exceed path check time. Use the best." << endl;
+									break;
+								}							
+								nav_msgs::Path inputRestTraj = this->getCurrentTraj(dtTemp);
+								nav_msgs::Path inputPolyTraj = this->polyTraj_->getTrajectory(dtTemp);
+								nav_msgs::Path inputCombinedTraj;
+								inputCombinedTraj.poses = inputRestTraj.poses;
+								for (size_t i=1; i<inputPolyTraj.poses.size(); ++i){
+									inputCombinedTraj.poses.push_back(inputPolyTraj.poses[i]);
+								}
+								
+								satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputCombinedTraj, adjustedInputCombinedTraj, dtTemp, finalTimeTemp);
+								if (satisfyDistanceCheck) break;
+								
+								dtTemp *= 0.8; // magic number 0.8
+							}
+							inputTraj = adjustedInputCombinedTraj;
+							finalTime = finalTimeTemp - this->trajectory_.getDuration(); // need to subtract prev time since it is combined trajectory
+							startEndConditions[1] = this->polyTraj_->getVel(finalTime);
+							startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
+						}
+						else{
+							nav_msgs::Path adjustedInputRestTraj;
+							bool satisfyDistanceCheck = false;
+							double dtTemp = initTs;
+							double finalTimeTemp;
+							ros::Time startTime = ros::Time::now();
+							ros::Time currTime;
+							while (ros::ok()){
+								currTime = ros::Time::now();
+								if ((currTime - startTime).toSec() >= 0.05){
+									cout << "[AutoFlight]: Exceed path check time. Use the best." << endl;
+									break;
+								}
+								nav_msgs::Path inputRestTraj = this->getCurrentTraj(dtTemp);
+								satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputRestTraj, adjustedInputRestTraj, dtTemp, finalTimeTemp);
+								if (satisfyDistanceCheck) break;
+								
+								dtTemp *= 0.8;
+							}
+							inputTraj = adjustedInputRestTraj;
+						}
+					}
+				this->inputTrajMsg_ = inputTraj;
+				// if (planSuccessVanilla){
+					bool updateSuccess = this->bsplineTraj_->updatePath(inputTraj, startEndConditions);
+					// if (obstaclesPos.size() != 0 and updateSuccess){
+					// 	this->bsplineTraj_->updateDynamicObstacles(obstaclesPos, obstaclesVel, obstaclesSize);
+					// }
+					if (updateSuccess){
+
+						// ego gradient
+						nav_msgs::Path bsplineTrajMsgTemp;
+						bool egoPlanSuccess = this->bsplineTraj_->makePlanEgoGradient(bsplineTrajMsgTemp);
+						// bool egoPlanSuccess = this->bsplineTraj_->makePlanEgoGradient();
+						// egoCpts = this->bsplineTraj_->getControlPoints();
+						if (egoPlanSuccess){
+							this->bsplineTrajMsg_ = bsplineTrajMsgTemp;
+							this->trajStartTime_ = ros::Time::now();
+							this->trajTime_ = 0.0; // reset trajectory time
+							this->trajectory_ = this->bsplineTraj_->getTrajectory();
+							this->trajectoryReady_ = true;
+							this->replan_ = false;
+						}
+						else{
+							// if the current trajectory is still valid, then just ignore this iteration
+							// if the current trajectory/or new goal point is assigned is not valid, then just stop
+							if (this->hasCollision()){
+								this->trajectoryReady_ = false;
+								// this->stop();
+								cout << "[AutoFlight]: Stop!!! Trajectory generation fails." << endl;
+								this->replan_ = true;
+							}
+							// else if (this->hasDynamicCollision()){
+							// 	this->trajectoryReady_ = false;
+							// 	this->stop();
+							// 	cout << "[AutoFlight]: Stop!!! Trajectory generation fails. Replan for dynamic obstacles." << endl;
+							// 	this->replan_ = true;
+							// }
+							else{
+								if (this->trajectoryReady_){
+									cout << "[AutoFlight]: Trajectory fail. Use trajectory from previous iteration." << endl;
+									this->replan_ = false;
+								}
+								else{
+									cout << "[AutoFlight]: Unable to generate a feasible trajectory. Please provide a new goal." << endl;
+									// this->replan_ = false;
+									this->replan_ = true;
+								}
+							}
+						}
+						}
+				else{
+					this->trajectoryReady_ = false;
+					this->stop();
+					 if (this->goalIdx_ <this->numGoals_-1){
+                        this->goalIdx_ ++;
+                    }
+                    else if (this->goalIdx_ == this->numGoals_-1){
+                        this->repeatPathNum_ -=1;
+						cout<<repeatPathNum_<<" rounds left"<<endl;
+                        this->goalIdx_ = 0;
+                    }
+                    if (this->repeatPathNum_ <= 0){
+                        this->predefinedGoal_.poses.clear();
+                    }
+                    this->goal_ = this->predefinedGoal_.poses[this->goalIdx_];
+					this->replan_ = true;
+					cout << "[AutoFlight]: Goal is not valid. Stop." << endl;
+					}
+					
+				}
+		}
+		else{
+if (this->replan_){
 			std::vector<Eigen::Vector3d> obstaclesPos, obstaclesVel, obstaclesSize;
 			if (this->useFakeDetector_){
 				Eigen::Vector3d robotSize;
@@ -449,6 +699,11 @@ namespace AutoFlight{
 					}
 					else{
 						cout << "[AutoFlight]: Global planner fails. Check goal and map." << endl;
+						// if (this->usePredefinedGoal_){
+						// 	this->goalIdx_ ++;
+						// 	this->goal_ = this->predefinedGoal_[this->goalIdx_];
+						// }
+
 					}		
 				}				
 			}
@@ -595,9 +850,10 @@ namespace AutoFlight{
 					// if the current trajectory/or new goal point is assigned is not valid, then just stop
 					if (this->hasCollision()){
 						this->trajectoryReady_ = false;
-						this->stop();
+						// this->stop();
 						cout << "[AutoFlight]: Stop!!! Trajectory generation fails." << endl;
-						this->replan_ = false;
+						// this->replan_ = false;
+						this->replan_  = true;
 					}
 					else if (this->hasDynamicCollision()){
 						this->trajectoryReady_ = false;
@@ -612,17 +868,20 @@ namespace AutoFlight{
 						}
 						else{
 							cout << "[AutoFlight]: Unable to generate a feasible trajectory. Please provide a new goal." << endl;
-							this->replan_ = false;
+							// this->replan_ = false;
+							this->replan_ = true;
 						}
 					}
 				}
 			}
 			else{
 				this->trajectoryReady_ = false;
-				this->stop();
-				this->replan_ = false;
+				// this->stop();
+				// this->replan_ = false;
+				this->replan_ = true;
 				cout << "[AutoFlight]: Goal is not valid. Stop." << endl;
 			}
+		}
 		}
 	}
 
@@ -782,6 +1041,41 @@ namespace AutoFlight{
 				cout << "[AutoFlight]: Replan for new goal position." << endl; 
 				return;
 			}
+			else if (this->usePredefinedGoal_ and this->predefinedGoal_.poses.size() > 0){
+                if (AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) <= 0.5){
+                    if (this->goalIdx_ <this->numGoals_-1){
+                        this->goalIdx_ ++;
+                    }
+                    else if (this->goalIdx_ == this->numGoals_-1){
+                        this->repeatPathNum_ -=1;
+						cout<<repeatPathNum_<<" rounds left"<<endl;
+                        this->goalIdx_ = 0;
+                    }
+                    if (this->repeatPathNum_ <= 0){
+                        this->predefinedGoal_.poses.clear();
+                    }
+                    this->goal_ = this->predefinedGoal_.poses[this->goalIdx_];
+                    // cout<<"goal: "<<this->goal_<<endl;
+                    this->replan_ = false;
+                    this->trajectoryReady_ = false;
+                    if (not this->noYawTurning_ and not this->useYawControl_){
+                        double yaw = atan2(this->goal_.pose.position.y - this->odom_.pose.pose.position.y, this->goal_.pose.position.x - this->odom_.pose.pose.position.x);
+                        this->facingYaw_ = yaw;
+                        this->moveToOrientation(yaw, this->desiredAngularVel_);
+                    }
+                    this->firstTimeSave_ = true;
+                    this->replan_ = true;
+                    this->goalReceived_ = false;
+                    this->firstGoal_ = true;
+                    if (this->useGlobalPlanner_){
+                        cout << "[AutoFlight]: Start global planning." << endl;
+                        this->needGlobalPlan_ = true;
+                        this->globalPlanReady_ = false;
+                    }
+                    cout << "[AutoFlight]: Replan for new goal position." << endl;
+                    return;
+                }
+            }
 
 			if (this->trajectoryReady_){
 				if (this->hasCollision()){ // if trajectory not ready, do not replan
@@ -867,7 +1161,7 @@ namespace AutoFlight{
 						for (double t=realTime; t<=endTime; t+=dt){
 							// Eigen::Vector3d p = this->mpc_->getPos(t);
 							Eigen::Vector3d p = this->mpc_->getRef(t);
-							if ((p - pos).norm() >= forwardDist){
+							if ((p - refPos).norm() >= forwardDist){
 								target.yaw = atan2(p(1) - refPos(1), p(0) - refPos(0));
 								noYawChange = false;
 								break;
@@ -926,7 +1220,7 @@ namespace AutoFlight{
 		std::vector<onboardDetector::box3D> obstacles;
 		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> freeRegions;
 		this->detector_->getObstacles(obstacles);
-		double fov = 1.57;
+		double fov = 2*M_PI;
 		for (onboardDetector::box3D ob: obstacles){
 			if (this->detector_->isObstacleInSensorRange(ob, fov)){
 				Eigen::Vector3d lowerBound (ob.x-ob.x_width/2-0.3, ob.y-ob.y_width/2-0.3, ob.z-ob.z_width/2-0.3);
@@ -1188,7 +1482,7 @@ namespace AutoFlight{
 
 	void dynamicNavigation::getDynamicObstacles(std::vector<Eigen::Vector3d>& obstaclesPos, std::vector<Eigen::Vector3d>& obstaclesVel, std::vector<Eigen::Vector3d>& obstaclesSize, const Eigen::Vector3d &robotSize){
 		std::vector<onboardDetector::box3D> obstacles;
-		this->detector_->getObstaclesInSensorRange(2*PI_const, obstacles, robotSize);
+		this->detector_->getObstaclesInSensorRange(PI_const*2, obstacles, robotSize);
 		for (onboardDetector::box3D ob : obstacles){
 			Eigen::Vector3d pos (ob.x, ob.y, ob.z);
 			Eigen::Vector3d vel (ob.Vx, ob.Vy, 0.0);

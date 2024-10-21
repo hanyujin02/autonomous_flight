@@ -1,6 +1,6 @@
-simulation: true
+simulation: false
 takeoff_height: 1.0 # m
-circle_radius: 0.75 # m
-time_to_max_radius: 20 #s
+circle_radius: 0.5 # m
+time_to_max_radius: 15 #s
 velocity: 0.5 #m/s
 yaw_control: false
