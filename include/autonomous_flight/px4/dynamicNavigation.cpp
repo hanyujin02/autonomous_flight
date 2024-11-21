@@ -676,6 +676,9 @@ namespace AutoFlight{
 				this->refTrajReady_ = false;
 				this->stop();
 				this->bsplineReplan_ = false;
+				this->mpcReplan_ = false;
+				this->mpcTrajectoryReady_ = false;
+				this->mpcFirstTime_ = true;
 				cout << "[AutoFlight]: Goal is not valid. Stop." << endl;
 			}
 		}
