@@ -1,0 +1,14 @@
+<launch>
+	<rosparam file="$(find tracking_controller)/cfg/controller_param.yaml" ns="controller"/>
+	<rosparam file="$(find autonomous_flight)/cfg/viewpoint_inspection/fake_detector_param.yaml" />
+	<rosparam file="$(find autonomous_flight)/cfg/viewpoint_inspection/flight_base.yaml" ns="autonomous_flight"/>
+	<rosparam file="$(find autonomous_flight)/cfg/viewpoint_inspection/planner_param.yaml" />
+	<rosparam file="$(find autonomous_flight)/cfg/viewpoint_inspection/mapping_param.yaml" ns="/dynamic_map" />
+	<rosparam file="$(find autonomous_flight)/cfg/viewpoint_inspection/dynamic_detector_param.yaml" ns="/onboard_detector" />
+	<rosparam file="$(find autonomous_flight)/cfg/viewpoint_inspection/predictor_param.yaml" ns="/dynamic_predictor" />
+	<rosparam file="$(find autonomous_flight)/cfg/viewpoint_inspection/viewpoint_planner.yaml" ns="/viewpoint_planner"  />
+	
+	<node pkg="tracking_controller" type="tracking_controller_node" name="tracking_controller_node" output="screen" />
+	<node pkg="autonomous_flight" type="viewpoint_inspection_node" name="viewpoint_inspection_node" output="screen" />
+	<node pkg="onboard_detector" type="yolo_detector_node.py" name="yolo_detector_node" output="screen" />
+</launch>

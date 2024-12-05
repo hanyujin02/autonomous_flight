@@ -31,9 +31,9 @@ bspline_traj/weight_distance: 1.0
 bspline_traj/weight_smoothness: 1.0
 bspline_traj/weight_feasibility: 1.0
 bspline_traj/weight_dynamic_obstacle: 1.0
-bspline_traj/plan_in_z_axis: true
+bspline_traj/plan_in_z_axis: false
 bspline_traj/min_height: 0.8
-bspline_traj/max_height: 1.5
+bspline_traj/max_height: 4.0
 bspline_traj/uncertain_aware_factor: 1.0
 bspline_traj/max_path_length: 7
 bspline_traj/max_obstacle_size: [5, 5, 3]
@@ -41,9 +41,9 @@ bspline_traj/prediction_horizon: 2.0
 
 mpc_planner/horizon: 30
 mpc_planner/z_range_min: 0.8 
-mpc_planner/z_range_max: 1.5 
-mpc_planner/static_safety_dist: 0.5
-mpc_planner/dynamic_safety_dist: 0.5
+mpc_planner/z_range_max: 4.0
+mpc_planner/static_safety_dist: 0.6
+mpc_planner/dynamic_safety_dist: 0.6
 mpc_planner/static_constraint_slack_ratio: 0.2
 mpc_planner/dynamic_constraint_slack_ratio: 0.2
 # MPC clustering params
@@ -51,4 +51,4 @@ mpc_planner/cloud_res: 0.2
 mpc_planner/local_cloud_region_x: 5.0 # forward
 mpc_planner/local_cloud_region_y: 2.0 # left and right
 mpc_planner/ground_height: 0.7
-mpc_planner/ceiling_height: 2.0
+mpc_planner/ceiling_height: 4.0

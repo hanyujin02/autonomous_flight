@@ -1,0 +1,8 @@
+inspection_offset: 3.0 #m
+inspection_step: 2.0 #m
+ground_height: 1.0 #m
+ceiling_height: 4.0 #m
+
+map_resolution: 0.1
+map_directory: "/home/jhy/catkin_ws/tunnel_map.pcd"
+# map_directory: "/home/jhy/catkin_ws/src/CERLAB-UAV-Autonomy-v2/trajectory_planner/map/floorplan1_static_map.pcd"

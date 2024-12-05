@@ -1,5 +1,5 @@
 simulation: true
-use_fake_detector: false
+use_fake_detector: true
 use_predictor: true
 takeoff_height: 1.0 # m
 use_global_planner: false
@@ -7,26 +7,11 @@ use_bspline_planner: true
 use_mpc_planner: true # if set true, will use MPC as the local planner instead of bspline, if both mpc and bspline set true, will use both
 #if both mpc and bspline set true, will use both
 no_yaw_turning: false
-use_yaw_control: true
+use_inspection_yaw: true
 desired_velocity: 1.0 # m/s
 desired_acceleration: 1.0 # m/s^2
 desired_angular_velocity: 0.5 # rad/s
 trajectory_info_save_path: "No"
 use_time_optimizer: false
 
-# MPC target parameters
-use_predefined_goal: false
-# goal: [0, 0, 1.0,
-#        7.5, 0, 1.0,
-#        15, 0, 1.0,
-#        15, 4.0, 1.0,
-#        7.5, 4.0, 1.0,
-#        0, 4.0, 1.0,
-#        0, 0, 1.0]
-
-goal: [0, 0, 1.0,
-       22, 0.0, 1.5,
-       24, -6, 1.5,
-       24, 0.0, 1.5,
-       0, 0, 1.0]
 execute_path_times: 1 # how many times to repeat the trajectory 
