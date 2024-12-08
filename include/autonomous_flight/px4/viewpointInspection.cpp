@@ -907,7 +907,24 @@ namespace AutoFlight{
 			}
 
 			if (this->mpcTrajectoryReady_){
-				if (this->mpcHasCollision() or this->hasDynamicCollision()){ 
+				if (this->goalHasCollision()){
+					this->mpcReplan_ = false;
+					this->bsplineReplan_ = false;
+					this->mpcTrajectoryReady_ = false;
+					this->bsplineTrajectoryReady_ = false;
+					ros::Rate r(200);
+					while(ros::ok() and this->replanning_){
+						r.sleep();
+					}
+					this->mpcTrajectoryReady_ = false;
+					this->stop();
+					this->refTrajReady_ = false;
+					this->mpcFirstTime_ = true;
+					this->goalReplan_ = true;
+					cout<<"[AutoFlight]: Invalid goal. Stop!" << endl;
+					return;
+				}
+				else if (this->mpcHasCollision() or this->hasDynamicCollision()){ 
 					this->stop();
 					this->mpcTrajectoryReady_ = false;
 					this->mpcReplan_ = true;
