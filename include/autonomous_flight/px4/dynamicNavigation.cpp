@@ -217,7 +217,13 @@ namespace AutoFlight{
 
 		if (this->useMPCPlanner_){
 			this->mpc_.reset(new trajPlanner::mpcPlanner (this->nh_));
-			this->mpc_->updateMaxVel(this->desiredVel_*1.5);
+			if (this->useBsplinePlanner_){
+				this->mpc_->updateMaxVel(this->desiredVel_);
+			}
+			else{
+				this->mpc_->updateMaxVel(this->desiredVel_*1.5);
+			}
+			
 			this->mpc_->updateMaxAcc(this->desiredAcc_);
 			this->mpc_->setMap(this->map_);
 		}
@@ -485,8 +491,10 @@ namespace AutoFlight{
 
 						inputTraj = adjustedInputPolyTraj;
 						finalTime = finalTimeTemp;
-						startEndConditions[1] = this->polyTraj_->getVel(finalTime);
-						startEndConditions[3] = this->polyTraj_->getAcc(finalTime);	
+						if (this->plannerType_ != PLANNER::MIXED){
+							startEndConditions[1] = this->polyTraj_->getVel(finalTime);
+							startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
+						}
 
 					}
 					else{
@@ -526,8 +534,10 @@ namespace AutoFlight{
 
 						inputTraj = adjustedInputPolyTraj;
 						finalTime = finalTimeTemp;
-						startEndConditions[1] = this->polyTraj_->getVel(finalTime);
-						startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
+						if (this->plannerType_ != PLANNER::MIXED){
+							startEndConditions[1] = this->polyTraj_->getVel(finalTime);
+							startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
+						}
 					}
 					else{
 						Eigen::Vector3d bsplineLastPos = this->trajectory_.at(this->trajectory_.getDuration());
@@ -579,8 +589,10 @@ namespace AutoFlight{
 							if (finalTime<0){
 								finalTime = 0;
 							}
-							startEndConditions[1] = this->polyTraj_->getVel(finalTime);
-							startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
+							if (this->plannerType_ != PLANNER::MIXED){
+								startEndConditions[1] = this->polyTraj_->getVel(finalTime);
+								startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
+							}
 						}
 						else{
 							nav_msgs::Path adjustedInputRestTraj;
@@ -1160,8 +1172,18 @@ namespace AutoFlight{
 			4. end acceleration (set to zero) 
 		*/
 
-		Eigen::Vector3d currVel = this->currVel_;
-		Eigen::Vector3d currAcc = this->currAcc_;
+		Eigen::Vector3d currVel;
+		Eigen::Vector3d currAcc;
+		if (this->plannerType_ == PLANNER::MIXED){
+			currVel <<0.0, 0.0, 0.0;
+			currAcc <<0.0, 0.0, 0.0;
+		}
+		else{
+			currVel = this->currVel_;
+			currAcc = this->currAcc_;
+		}
+		// Eigen::Vector3d currVel = this->currVel_;
+		// Eigen::Vector3d currAcc = this->currAcc_;
 		Eigen::Vector3d endVel (0.0, 0.0, 0.0);
 		Eigen::Vector3d endAcc (0.0, 0.0, 0.0);
 
@@ -1343,6 +1365,7 @@ namespace AutoFlight{
 				minDist = (this->currPos_-pos).norm();
 			}
 		}	
+		time = std::min(time+dt, this->trajectory_.getDuration());
 		return time;	
 	}
 
