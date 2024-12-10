@@ -290,6 +290,7 @@ namespace AutoFlight{
 			if (this->mpcReplan_){
 				this->replanning_ = true;
 				if (not this->refTrajReady_){
+					this->mpcTrajectoryReady_ = false;
 					if (this->plannerType_ == PLANNER::MPC){
 						// if (this->usePredefinedGoal_){			
 						// 	Eigen::Vector3d startVel (0, 0, 0);
@@ -903,6 +904,7 @@ namespace AutoFlight{
 			else{
 				this->stop();
 				this->refTrajReady_ = false;
+				this->mpcTrajectoryReady_ = false;
 				return;
 			}
 
@@ -1093,11 +1095,14 @@ namespace AutoFlight{
 
 	void viewpointInspection::trajExeCB(const ros::TimerEvent&){
 		bool trajectoryReady;
-		if (this->plannerType_ == PLANNER::MPC or this->plannerType_ == PLANNER::MIXED){
+		if (this->plannerType_ == PLANNER::MPC){
 			trajectoryReady = this->mpcTrajectoryReady_;
 		}
-		else{
+		else if (this->plannerType_ == PLANNER::BSPLINE){
 			trajectoryReady = this->bsplineTrajectoryReady_;
+		}
+		else if (this->plannerType_ == PLANNER::MIXED){
+			trajectoryReady = (this->mpcTrajectoryReady_ and this->bsplineTrajectoryReady_);
 		}
 		if (trajectoryReady){
 			ros::Time currTime = ros::Time::now();
