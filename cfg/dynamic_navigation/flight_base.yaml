@@ -1,10 +1,10 @@
 simulation: true
-use_fake_detector: false
+use_fake_detector: true
 use_predictor: false
 takeoff_height: 1.0 # m
 use_global_planner: false
-use_ego_planner: true
-use_mpc_planner: false # if set true, will use MPC as the local planner instead of bspline
+use_ego_planner: false
+use_mpc_planner: true # if set true, will use MPC as the local planner instead of bspline
 no_yaw_turning: false
 use_yaw_control: true
 desired_velocity: 1.5 # m/s
@@ -20,25 +20,25 @@ use_predefined_goal: true
 #        3.0,3.0,1.0,
 #        2.5,-0.5,1.0,
 #        0.0,0.0,1.0]
-goal: [0.0, 24.0, 1.0,
-       0.0, -24.0, 1.0,
-       0.0, 24.0, 1.0
-       ]
-# goal: [0, 6.0, 1.0,
-#        4.3, 4.8, 1.0,
-#        8.4, -4.3, 1.0,
-#        8.3, -8.1, 1.0,
-#        4.4, -7.7, 1.0,
-#        # 3.2, -5.3, 1.0,
-#        # 0.3, -5.1, 1.0,
-#        0.4, -8.4, 1.0,
-#        -4.1, -8.5, 1.0,
-#        -8.0, -5.5, 1.0,
-#        # -7.3, -4.3, 1.0,
-#        -9.0, 0.0, 1.0,
-#        -6.0, 5.5, 1.0,
-#        # -3.0, 5.2, 1.0,
-#        0, 6, 1.0] # x,y,z
+# goal: [0.0, 24.0, 1.0,
+#        0.0, -24.0, 1.0,
+#        0.0, 24.0, 1.0
+#        ]
+goal: [0, 6.0, 1.0,
+       4.3, 4.8, 1.0,
+       8.4, -4.3, 1.0,
+       8.3, -8.1, 1.0,
+       4.4, -7.7, 1.0,
+       # 3.2, -5.3, 1.0,
+       # 0.3, -5.1, 1.0,
+       0.4, -8.4, 1.0,
+       -4.1, -8.5, 1.0,
+       -8.0, -5.5, 1.0,
+       # -7.3, -4.3, 1.0,
+       -11.0, 0.0, 1.0,
+       -6.0, 5.5, 1.0,
+       # -3.0, 5.2, 1.0,
+       0, 6, 1.0] # x,y,z
 # goal: [0.0,6.0,1.0,
 #        # 3.0, 7.5, 1.0,
 #        # 7.0, 7.0, 1.0,

@@ -375,7 +375,8 @@ namespace AutoFlight{
 						newTrajReturn = this->mpc_->makePlanWithPred();
 					}
 					else{
-						newTrajReturn = this->mpc_->makePlan();
+						// newTrajReturn = this->mpc_->makePlan();
+						newTrajReturn = this->mpc_->makePlanBM();
 					}
 					nav_msgs::Path mpcTraj;	
 					
@@ -1491,7 +1492,7 @@ if (this->replan_){
 
 	void dynamicNavigation::getDynamicObstacles(std::vector<Eigen::Vector3d>& obstaclesPos, std::vector<Eigen::Vector3d>& obstaclesVel, std::vector<Eigen::Vector3d>& obstaclesSize, const Eigen::Vector3d &robotSize){
 		std::vector<onboardDetector::box3D> obstacles;
-		this->detector_->getObstaclesInSensorRange(PI_const*2, obstacles, robotSize);
+		this->detector_->getObstaclesInSensorRange(PI_const/2, obstacles, robotSize);
 		for (onboardDetector::box3D ob : obstacles){
 			Eigen::Vector3d pos (ob.x, ob.y, ob.z);
 			Eigen::Vector3d vel (ob.Vx, ob.Vy, 0.0);
