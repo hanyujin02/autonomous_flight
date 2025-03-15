@@ -202,6 +202,8 @@ namespace AutoFlight{
 		this->rrtPlanner_->setMap(this->map_);
 
         this->vpPlanner_.reset(new globalPlanner::vpPlanner (this->nh_));
+		this->vpPlanner_->updateCurrPos(this->currPos_);
+		this->vpPlanner_->makePlan();
 
 		// initialize polynomial trajectory planner
 		this->polyTraj_.reset(new trajPlanner::polyTrajOccMap (this->nh_));
