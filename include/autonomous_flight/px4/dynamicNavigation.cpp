@@ -484,7 +484,15 @@ namespace AutoFlight{
 								break;
 							}
 							nav_msgs::Path inputPolyTraj = this->polyTraj_->getTrajectory(dtTemp);
-							satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputPolyTraj, adjustedInputPolyTraj, dtTemp, finalTimeTemp);
+							bool adjustLength;
+							if (this->plannerType_ == PLANNER::BSPLINE){
+								adjustLength = true;
+							}
+							else if (this->plannerType_ == PLANNER::MIXED){
+								adjustLength = false;
+							}
+							satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputPolyTraj, adjustedInputPolyTraj, dtTemp, finalTimeTemp, adjustLength);
+							// satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputPolyTraj, adjustedInputPolyTraj, dtTemp, finalTimeTemp);
 							if (satisfyDistanceCheck) break;
 							dtTemp *= 0.8;
 						}
@@ -503,7 +511,7 @@ namespace AutoFlight{
 				}				
 			}
 			else{
-				if (obstaclesPos.size() == 0 or this->plannerType_ == PLANNER::MIXED){ // use prev planned trajectory if there is no dynamic obstacle
+				if (obstaclesPos.size() == 0 or this->plannerType_ == PLANNER::MIXED or this->plannerType_ == PLANNER::BSPLINE){ // use prev planned trajectory if there is no dynamic obstacle
 					if (not this->bsplineTrajectoryReady_){ // use polynomial trajectory as input
 						nav_msgs::Path waypoints, polyTrajTemp;
 						geometry_msgs::PoseStamped start, goal;
@@ -526,7 +534,15 @@ namespace AutoFlight{
 								break;
 							}
 							nav_msgs::Path inputPolyTraj = this->polyTraj_->getTrajectory(dtTemp);
-							satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputPolyTraj, adjustedInputPolyTraj, dtTemp, finalTimeTemp);
+							bool adjustLength;
+							if (this->plannerType_ == PLANNER::BSPLINE){
+								adjustLength = true;
+							}
+							else if (this->plannerType_ == PLANNER::MIXED){
+								adjustLength = false;
+							}
+							satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputPolyTraj, adjustedInputPolyTraj, dtTemp, finalTimeTemp, adjustLength);
+							// satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputPolyTraj, adjustedInputPolyTraj, dtTemp, finalTimeTemp);
 							if (satisfyDistanceCheck) break;
 							
 							dtTemp *= 0.8;
@@ -534,10 +550,8 @@ namespace AutoFlight{
 
 						inputTraj = adjustedInputPolyTraj;
 						finalTime = finalTimeTemp;
-						if (this->plannerType_ != PLANNER::MIXED){
-							startEndConditions[1] = this->polyTraj_->getVel(finalTime);
-							startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
-						}
+						startEndConditions[1] = this->polyTraj_->getVel(finalTime);
+						startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
 					}
 					else{
 						Eigen::Vector3d bsplineLastPos = this->trajectory_.at(this->trajectory_.getDuration());
@@ -579,7 +593,15 @@ namespace AutoFlight{
 									inputCombinedTraj.poses.push_back(inputPolyTraj.poses[i]);
 								}
 								
-								satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputCombinedTraj, adjustedInputCombinedTraj, dtTemp, finalTimeTemp);
+								bool adjustLength;
+								if (this->plannerType_ == PLANNER::BSPLINE){
+									adjustLength = true;
+								}
+								else if (this->plannerType_ == PLANNER::MIXED){
+									adjustLength = false;
+								}
+								satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputCombinedTraj, adjustedInputCombinedTraj, dtTemp, finalTimeTemp, adjustLength);
+								// satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputCombinedTraj, adjustedInputCombinedTraj, dtTemp, finalTimeTemp);
 								if (satisfyDistanceCheck) break;
 								
 								dtTemp *= 0.8; // magic number 0.8
@@ -589,10 +611,8 @@ namespace AutoFlight{
 							if (finalTime<0){
 								finalTime = 0;
 							}
-							if (this->plannerType_ != PLANNER::MIXED){
-								startEndConditions[1] = this->polyTraj_->getVel(finalTime);
-								startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
-							}
+							startEndConditions[1] = this->polyTraj_->getVel(finalTime);
+							startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
 						}
 						else{
 							nav_msgs::Path adjustedInputRestTraj;
@@ -608,7 +628,16 @@ namespace AutoFlight{
 									break;
 								}
 								nav_msgs::Path inputRestTraj = this->getCurrentTraj(dtTemp);
-								satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputRestTraj, adjustedInputRestTraj, dtTemp, finalTimeTemp);
+								
+							bool adjustLength;
+							if (this->plannerType_ == PLANNER::BSPLINE){
+								adjustLength = true;
+							}
+							else if (this->plannerType_ == PLANNER::MIXED){
+								adjustLength = false;
+							}
+							satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputRestTraj, adjustedInputRestTraj, dtTemp, finalTimeTemp, adjustLength);
+							// satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputRestTraj, adjustedInputRestTraj, dtTemp, finalTimeTemp);
 								if (satisfyDistanceCheck) break;
 								
 								dtTemp *= 0.8;
@@ -632,7 +661,14 @@ namespace AutoFlight{
 
 			this->inputTrajMsg_ = inputTraj;
 
-			bool updateSuccess = this->bsplineTraj_->updatePath(inputTraj, startEndConditions);
+			bool adjustLength;
+			if (this->plannerType_ == PLANNER::BSPLINE){
+				adjustLength = true;
+			}
+			else if (this->plannerType_ == PLANNER::MIXED){
+				adjustLength = false;
+			}
+			bool updateSuccess = this->bsplineTraj_->updatePath(inputTraj, startEndConditions, adjustLength);
 			if (obstaclesPos.size() != 0 and updateSuccess and this->plannerType_ == PLANNER::BSPLINE){
 				this->bsplineTraj_->updateDynamicObstacles(obstaclesPos, obstaclesVel, obstaclesSize);
 			}
@@ -723,6 +759,39 @@ namespace AutoFlight{
 		*/
 		if (this->plannerType_ == PLANNER::MPC){
 			if (this->usePredefinedGoal_){
+				if (this->goalReceived_){
+					this->usePredefinedGoal_ = false;
+					this->mpcReplan_ = false;
+					this->mpcTrajectoryReady_ = false;
+					ros::Rate r(200);
+					while(ros::ok() and this->replanning_){
+						r.sleep();
+					}
+					this->mpcTrajectoryReady_ = false;
+					if(this->goalHasCollision()){
+						this->refTrajReady_ = false;
+						this->goalReceived_ = false;
+						cout << "[AutoFlight]: Invalid goal position, please assign a new goal." << endl; 
+						return;
+					}
+					else{
+						this->refTrajReady_ = false;
+						if (not this->noYawTurning_ ){
+							double yaw = atan2(this->goal_.pose.position.y - this->odom_.pose.pose.position.y, this->goal_.pose.position.x - this->odom_.pose.pose.position.x);
+							this->facingYaw_ = yaw;
+							this->moveToOrientation(yaw, this->desiredAngularVel_);
+						}
+						this->firstTimeSave_ = true;
+						this->mpcReplan_ = true;
+						this->goalReceived_ = false;
+						if (this->useGlobalPlanner_){
+							cout << "[AutoFlight]: Start global planning." << endl;
+						}
+	
+						cout << "[AutoFlight]: Replan for new goal position." << endl; 
+						return;
+					}
+				}
 				if (not this->refTrajReady_ and this->predefinedGoal_.poses.size()>0){
 					this->mpcReplan_ = false;
 					this->refTrajReady_ = false;
@@ -878,29 +947,33 @@ namespace AutoFlight{
 					return;
 				}
 
-				// replan for dynamic obstacles
-				if (this->computeExecutionDistance() >= 0.3 and this->hasDynamicCollision()){
-				// if (this->hasDynamicObstacle()){
-					this->bsplineReplan_ = true;
-					cout << "[AutoFlight]: Replan for dynamic obstacles." << endl;
-					return;
-				}
+				// // replan for dynamic obstacles
+				// if (this->computeExecutionDistance() >= 0.3 and this->hasDynamicCollision()){
+				// // if (this->hasDynamicObstacle()){
+				// 	this->bsplineReplan_ = true;
+				// 	cout << "[AutoFlight]: Replan for dynamic obstacles." << endl;
+				// 	return;
+				// }
 
-				if (this->computeExecutionDistance() >= 1.5 and AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) >= 3){
-					this->bsplineReplan_ = true;
-					cout << "[AutoFlight]: Regular replan." << endl;
-					return;
-				}
+				// if (this->computeExecutionDistance() >= 1.5 and AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) >= 3){
+				// 	this->bsplineReplan_ = true;
+				// 	cout << "[AutoFlight]: Regular replan." << endl;
+				// 	return;
+				// }
 
-				if (this->computeExecutionDistance() >= 0.3 and this->replanForDynamicObstacle()){
-					this->bsplineReplan_ = true;
-					cout << "[AutoFlight]: Regular replan for dynamic obstacles." << endl;
-					return;
-				}
+				// if (this->computeExecutionDistance() >= 0.3 and this->replanForDynamicObstacle()){
+				// 	this->bsplineReplan_ = true;
+				// 	cout << "[AutoFlight]: Regular replan for dynamic obstacles." << endl;
+				// 	return;
+				// }
 			}
 		}
 		else if (this->plannerType_ == PLANNER::MIXED){
 			if (this->usePredefinedGoal_){
+				if (this->goalReceived_){
+					this->usePredefinedGoal_ = false;
+					this->goalUpdated_ = false;
+				}
 				if (AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) <= 0.3 and this->repeatPathNum_){
 					this->goalIdx_++;
 					if (this->goalIdx_ == int(this->predefinedGoal_.poses.size())){
@@ -918,19 +991,44 @@ namespace AutoFlight{
 						if (not this->firstGoal_){
 							this->firstGoal_ = true;
 						}
-						if (not this->goalReceived_){
-							this->goalReceived_ = true;
+						if (not this->goalUpdated_){
+							this->goalUpdated_ = true;
 						}
 					}
 					return;
 				}
 			}
-			if (this->goalReceived_){
+			if (this->goalUpdated_){
+				cout<<"1"<<endl;
 				this->bsplineReplan_ = false;
 				this->mpcReplan_ = false;
 				this->bsplineTrajectoryReady_ = false;
 				this->mpcTrajectoryReady_ = false;
-				if (not this->noYawTurning_ and not this->useYawControl_){
+				if (not this->noYawTurning_){
+					double yaw = atan2(this->goal_.pose.position.y - this->odom_.pose.pose.position.y, this->goal_.pose.position.x - this->odom_.pose.pose.position.x);
+					this->facingYaw_ = yaw;
+					this->moveToOrientation(yaw, this->desiredAngularVel_);
+				}
+				this->firstTimeSave_ = true;
+				this->bsplineReplan_ = true;
+				this->mpcReplan_ = true;
+				this->refTrajReady_ = false;
+				this->goalUpdated_ = false;
+				if (this->useGlobalPlanner_){
+					cout << "[AutoFlight]: Start global planning." << endl;
+					this->needGlobalPlan_ = true;
+					this->globalPlanReady_ = false;
+				}
+
+				cout << "[AutoFlight]: Replan for new goal position." << endl; 
+				return;
+			}
+			else if (this->goalReceived_){
+				this->bsplineReplan_ = false;
+				this->mpcReplan_ = false;
+				this->bsplineTrajectoryReady_ = false;
+				this->mpcTrajectoryReady_ = false;
+				if (not this->noYawTurning_){
 					double yaw = atan2(this->goal_.pose.position.y - this->odom_.pose.pose.position.y, this->goal_.pose.position.x - this->odom_.pose.pose.position.x);
 					this->facingYaw_ = yaw;
 					this->moveToOrientation(yaw, this->desiredAngularVel_);
@@ -960,13 +1058,13 @@ namespace AutoFlight{
 					return;
 				}
 
-				if (this->computeExecutionDistance() >= 1.5 and AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) >= 3){
-					this->bsplineReplan_ = true;
-					this->mpcReplan_ = true;
-					this->refTrajReady_ = false;
-					cout << "[AutoFlight]: Regular replan." << endl;
-					return;
-				}
+				// if (this->computeExecutionDistance() >= 1.5 and AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) >= 3){
+				// 	this->bsplineReplan_ = true;
+				// 	this->mpcReplan_ = true;
+				// 	this->refTrajReady_ = false;
+				// 	cout << "[AutoFlight]: Regular replan." << endl;
+				// 	return;
+				// }
 			}
 			else{
 				this->stop();

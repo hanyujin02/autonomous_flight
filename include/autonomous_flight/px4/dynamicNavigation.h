@@ -76,6 +76,7 @@ namespace AutoFlight{
 		bool globalPlanReady_ = false;
 		bool refTrajReady_ = false;
 		bool mpcFirstTime_ = false;
+		bool goalUpdated_ = false;
 		nav_msgs::Path rrtPathMsg_;
 		nav_msgs::Path polyTrajMsg_;
 		nav_msgs::Path pwlTrajMsg_;

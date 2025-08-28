@@ -118,7 +118,6 @@ namespace AutoFlight{
 
 		void run();	
 		double getViewAngle();
-		void getInaccessibleView(std::vector<Eigen::Vector2i> &inaccessibleIdx);
 		void getStartEndConditions(std::vector<Eigen::Vector3d>& startEndConditions);	
 		bool goalHasCollision();
         bool vpHasCollision(const Eigen::Vector4d &vp);
