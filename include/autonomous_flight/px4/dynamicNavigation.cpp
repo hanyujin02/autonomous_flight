@@ -947,25 +947,25 @@ namespace AutoFlight{
 					return;
 				}
 
-				// // replan for dynamic obstacles
-				// if (this->computeExecutionDistance() >= 0.3 and this->hasDynamicCollision()){
-				// // if (this->hasDynamicObstacle()){
-				// 	this->bsplineReplan_ = true;
-				// 	cout << "[AutoFlight]: Replan for dynamic obstacles." << endl;
-				// 	return;
-				// }
+				// replan for dynamic obstacles
+				if (this->computeExecutionDistance() >= 0.3 and this->hasDynamicCollision()){
+				// if (this->hasDynamicObstacle()){
+					this->bsplineReplan_ = true;
+					cout << "[AutoFlight]: Replan for dynamic obstacles." << endl;
+					return;
+				}
 
-				// if (this->computeExecutionDistance() >= 1.5 and AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) >= 3){
-				// 	this->bsplineReplan_ = true;
-				// 	cout << "[AutoFlight]: Regular replan." << endl;
-				// 	return;
-				// }
+				if (this->computeExecutionDistance() >= 1.5 and AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) >= 3){
+					this->bsplineReplan_ = true;
+					cout << "[AutoFlight]: Regular replan." << endl;
+					return;
+				}
 
-				// if (this->computeExecutionDistance() >= 0.3 and this->replanForDynamicObstacle()){
-				// 	this->bsplineReplan_ = true;
-				// 	cout << "[AutoFlight]: Regular replan for dynamic obstacles." << endl;
-				// 	return;
-				// }
+				if (this->computeExecutionDistance() >= 0.3 and this->replanForDynamicObstacle()){
+					this->bsplineReplan_ = true;
+					cout << "[AutoFlight]: Regular replan for dynamic obstacles." << endl;
+					return;
+				}
 			}
 		}
 		else if (this->plannerType_ == PLANNER::MIXED){
