@@ -98,6 +98,9 @@ namespace AutoFlight{
 		ros::Time lastDynamicObstacleTime_;
 		Eigen::Vector3d startPos_;
 		std::vector<std::vector<Eigen::Vector3d>> hitPoints_;
+
+		bool isTurningReplan_ = false;
+		bool isTurningGoal_ = false;
 		
 	public:
 		viewpointInspection(const ros::NodeHandle& nh);
