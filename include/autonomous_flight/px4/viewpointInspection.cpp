@@ -426,6 +426,7 @@ namespace AutoFlight{
 			double initTs = this->bsplineTraj_->getInitTs();
 			if (this->useGlobalPlanner_){
 				if (this->needGlobalPlan_){
+					cout<<"Global Planning..."<<endl;
 					this->rrtPlanner_->updateStart(this->odom_.pose.pose);
 					this->rrtPlanner_->updateGoal(this->goal_.pose);
 					nav_msgs::Path rrtPathMsgTemp;
@@ -438,6 +439,7 @@ namespace AutoFlight{
 					return;
 				}
 				else{
+					cout<<"using global planner, no need global plan"<<endl;
 					if (this->globalPlanReady_){
 						// get rest of global plan
 						nav_msgs::Path restPath = this->getRestGlobalPath();
@@ -481,142 +483,7 @@ namespace AutoFlight{
 				}				
 			}
 			else{
-				if (obstaclesPos.size() == 0 or this->plannerType_ == PLANNER::MIXED){ // use prev planned trajectory if there is no dynamic obstacle
-					if (not this->bsplineTrajectoryReady_){ // use polynomial trajectory as input
-						nav_msgs::Path waypoints, polyTrajTemp;
-						geometry_msgs::PoseStamped start, goal;
-						start.pose = this->odom_.pose.pose; goal = this->goal_;
-						waypoints.poses = std::vector<geometry_msgs::PoseStamped> {start, goal};					
-						
-						this->polyTraj_->updatePath(waypoints, startEndConditions);
-						this->polyTraj_->makePlan(false); // no corridor constraint
-						
-						nav_msgs::Path adjustedInputPolyTraj;
-						bool satisfyDistanceCheck = false;
-						double dtTemp = initTs;
-						double finalTimeTemp;
-						ros::Time startTime = ros::Time::now();
-						ros::Time currTime;
-						while (ros::ok()){
-							currTime = ros::Time::now();
-							if ((currTime - startTime).toSec() >= 0.05){
-								cout << "[AutoFlight]: Exceed path check time. Use the best." << endl;
-								break;
-							}
-							nav_msgs::Path inputPolyTraj = this->polyTraj_->getTrajectory(dtTemp);
-							bool adjustLength;
-							if (this->plannerType_ == PLANNER::BSPLINE){
-								adjustLength = true;
-							}
-							else if (this->plannerType_ == PLANNER::MIXED){
-								adjustLength = false;
-							}
-							satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputPolyTraj, adjustedInputPolyTraj, dtTemp, finalTimeTemp, adjustLength);	
-							// satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputPolyTraj, adjustedInputPolyTraj, dtTemp, finalTimeTemp);
-							if (satisfyDistanceCheck) break;
-							dtTemp *= 0.8;
-						}
-
-						inputTraj = adjustedInputPolyTraj;
-						finalTime = finalTimeTemp;
-						startEndConditions[1] = this->polyTraj_->getVel(finalTime);
-						startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
-					}
-					else{
-						Eigen::Vector3d bsplineLastPos = this->trajectory_.at(this->trajectory_.getDuration());
-						geometry_msgs::PoseStamped lastPs; lastPs.pose.position.x = bsplineLastPos(0); lastPs.pose.position.y = bsplineLastPos(1); lastPs.pose.position.z = bsplineLastPos(2);
-						Eigen::Vector3d goalPos (this->goal_.pose.position.x, this->goal_.pose.position.y, this->goal_.pose.position.z);
-						// check the distance between last point and the goal position
-						if ((bsplineLastPos - goalPos).norm() >= 0.2){ // use polynomial trajectory to make the rest of the trajectory
-							nav_msgs::Path waypoints, polyTrajTemp;
-							waypoints.poses = std::vector<geometry_msgs::PoseStamped>{lastPs, this->goal_};
-							std::vector<Eigen::Vector3d> polyStartEndConditions;
-							Eigen::Vector3d polyStartVel = this->trajectory_.getDerivative().at(this->trajectory_.getDuration());
-							Eigen::Vector3d polyEndVel (0.0, 0.0, 0.0);
-							Eigen::Vector3d polyStartAcc = this->trajectory_.getDerivative().getDerivative().at(this->trajectory_.getDuration());
-							Eigen::Vector3d polyEndAcc (0.0, 0.0, 0.0);
-							polyStartEndConditions.push_back(polyStartVel);
-							polyStartEndConditions.push_back(polyEndVel);
-							polyStartEndConditions.push_back(polyStartAcc);
-							polyStartEndConditions.push_back(polyEndAcc);
-							this->polyTraj_->updatePath(waypoints, polyStartEndConditions);
-							this->polyTraj_->makePlan(false); // no corridor constraint
-							
-							nav_msgs::Path adjustedInputCombinedTraj;
-							bool satisfyDistanceCheck = false;
-							double dtTemp = initTs;
-							double finalTimeTemp;
-							ros::Time startTime = ros::Time::now();
-							ros::Time currTime;
-							while (ros::ok()){
-								currTime = ros::Time::now();
-								if ((currTime - startTime).toSec() >= 0.05){
-									cout << "[AutoFlight]: Exceed path check time. Use the best." << endl;
-									break;
-								}							
-								nav_msgs::Path inputRestTraj = this->getCurrentTraj(dtTemp);
-								nav_msgs::Path inputPolyTraj = this->polyTraj_->getTrajectory(dtTemp);
-								nav_msgs::Path inputCombinedTraj;
-								inputCombinedTraj.poses = inputRestTraj.poses;
-								for (size_t i=1; i<inputPolyTraj.poses.size(); ++i){
-									inputCombinedTraj.poses.push_back(inputPolyTraj.poses[i]);
-								}
-								
-								bool adjustLength;
-								if (this->plannerType_ == PLANNER::BSPLINE){
-									adjustLength = true;
-								}
-								else if (this->plannerType_ == PLANNER::MIXED){
-									adjustLength = false;
-								}
-								satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputCombinedTraj, adjustedInputCombinedTraj, dtTemp, finalTimeTemp, adjustLength);
-								// satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputCombinedTraj, adjustedInputCombinedTraj, dtTemp, finalTimeTemp);
-								if (satisfyDistanceCheck) break;
-								
-								dtTemp *= 0.8; // magic number 0.8
-							}
-							inputTraj = adjustedInputCombinedTraj;
-							finalTime = finalTimeTemp - this->trajectory_.getDuration(); // need to subtract prev time since it is combined trajectory
-							if (finalTime<0){
-								finalTime = 0;
-							}
-							if (this->plannerType_ != PLANNER::MIXED){
-								startEndConditions[1] = this->polyTraj_->getVel(finalTime);
-								startEndConditions[3] = this->polyTraj_->getAcc(finalTime);
-							}
-						}
-						else{
-							nav_msgs::Path adjustedInputRestTraj;
-							bool satisfyDistanceCheck = false;
-							double dtTemp = initTs;
-							double finalTimeTemp;
-							ros::Time startTime = ros::Time::now();
-							ros::Time currTime;
-							while (ros::ok()){
-								currTime = ros::Time::now();
-								if ((currTime - startTime).toSec() >= 0.05){
-									cout << "[AutoFlight]: Exceed path check time. Use the best." << endl;
-									break;
-								}
-								nav_msgs::Path inputRestTraj = this->getCurrentTraj(dtTemp);
-								bool adjustLength;
-								if (this->plannerType_ == PLANNER::BSPLINE){
-									adjustLength = true;
-								}
-								else if (this->plannerType_ == PLANNER::MIXED){
-									adjustLength = false;
-								}
-								satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputRestTraj, adjustedInputRestTraj, dtTemp, finalTimeTemp, adjustLength);
-								// satisfyDistanceCheck = this->bsplineTraj_->inputPathCheck(inputRestTraj, adjustedInputRestTraj, dtTemp, finalTimeTemp);
-								if (satisfyDistanceCheck) break;
-								
-								dtTemp *= 0.8;
-							}
-							inputTraj = adjustedInputRestTraj;
-						}
-					}
-				}
-				else{
+				// if (not this->vpPlanner_->getInputTraj(inputTraj)){
 					nav_msgs::Path simplePath;
 					geometry_msgs::PoseStamped pStart, pGoal;
 					pStart.pose = this->odom_.pose.pose;
@@ -625,7 +492,10 @@ namespace AutoFlight{
 					simplePath.poses = pathVec;				
 					this->pwlTraj_->updatePath(simplePath, 1.0, false);
 					this->pwlTraj_->makePlan(inputTraj, this->bsplineTraj_->getControlPointDist());
-				}
+				// }
+				// else{
+					// cout<<"Initiating with viewpoint..."<<endl;
+				// }
 			}
 			
 
@@ -678,11 +548,12 @@ namespace AutoFlight{
 							this->refTrajReady_ = false;
 							this->stop();
 							cout << "[AutoFlight]: Stop!!! Trajectory generation fails." << endl;
-							this->bsplineReplan_ = false;
+							this->bsplineReplan_ = true;
 							if (this->plannerType_ == PLANNER::MIXED){
 								this->mpcReplan_ = false;
 								this->mpcTrajectoryReady_ = false;
 							}
+							// this->goalReplan_ = true;
 						}
 					}
 					else if (this->hasDynamicCollision() and this->plannerType_ == PLANNER::BSPLINE){
@@ -698,11 +569,12 @@ namespace AutoFlight{
 						}
 						else{
 							cout << "[AutoFlight]: Unable to generate a feasible trajectory. Please provide a new goal." << endl;
-							this->bsplineReplan_ = false;
+							this->bsplineReplan_ = true;
 							if (this->plannerType_ == PLANNER::MIXED){
 								this->mpcReplan_ = false;
 								this->mpcTrajectoryReady_ = false;
 							}
+							// this->goalReplan_ = true;
 						}
 					}
 				}
@@ -716,6 +588,7 @@ namespace AutoFlight{
 				this->mpcTrajectoryReady_ = false;
 				this->mpcFirstTime_ = true;
 				cout << "[AutoFlight]: Goal is not valid. Stop." << endl;
+				this->goalReplan_ = true;
 			}
 		}
 	}
@@ -752,7 +625,9 @@ namespace AutoFlight{
 					else{
 						yaw = atan2(this->goal_.pose.position.y - this->odom_.pose.pose.position.y, this->goal_.pose.position.x - this->odom_.pose.pose.position.x);
 					}
+					this->isTurningReplan_ = true;
 					this->moveToOrientation(yaw, this->desiredAngularVel_);
+					this->isTurningReplan_ = false;
 					this->firstTimeSave_ = true;
 					this->mpcReplan_ = true;
 					this->goalReceived_ = false;
@@ -816,7 +691,9 @@ namespace AutoFlight{
 				else{
 					yaw = atan2(this->goal_.pose.position.y - this->odom_.pose.pose.position.y, this->goal_.pose.position.x - this->odom_.pose.pose.position.x);
 				}
+				this->isTurningReplan_ = true;
 				this->moveToOrientation(yaw, this->desiredAngularVel_);
+				this->isTurningReplan_ = false;
 				this->firstTimeSave_ = true;
 				this->bsplineReplan_ = true;
 				this->goalReceived_ = false;
@@ -866,12 +743,21 @@ namespace AutoFlight{
 				this->mpcTrajectoryReady_ = false;
 				double yaw;
 				if (this->noYawTurning_){
+					// cout<<"no yaw turning, facing yaw: "<< this->facingYaw_<<endl;
 					yaw = this->facingYaw_;
 				}
 				else{
+					// cout<<"calculating yaw to goal..."<<endl;
 					yaw = atan2(this->goal_.pose.position.y - this->odom_.pose.pose.position.y, this->goal_.pose.position.x - this->odom_.pose.pose.position.x);
 				}
+				// cout<<"facing yaw after new goal1: "<< yaw <<endl;
+				if(this->isTurningGoal_){
+					return;
+				}
+				this->isTurningReplan_ = true;
 				this->moveToOrientation(yaw, this->desiredAngularVel_);
+				this->isTurningReplan_ = false;
+				// cout<<"facing yaw after new goal2: "<< this->facingYaw_<<endl;
 				this->firstTimeSave_ = true;
 				this->bsplineReplan_ = true;
 				this->mpcReplan_ = true;
@@ -953,7 +839,15 @@ namespace AutoFlight{
 		double yaw;
 		// regular goal replan
 		if (AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) <= 0.3){
-			cout<<"goal reached, replan"<<endl;
+			// cout<<"Goal reached, replan"<<endl;
+			// cout<<"facing yaw after reaching goal1: "<< this->facingYaw_<<endl;
+			if (this->isTurningReplan_){
+				return;
+			}
+			this->isTurningGoal_ = true;
+			this->moveToOrientation(this->facingYaw_, this->desiredAngularVel_);
+			this->isTurningGoal_ = false;
+			// cout<<"facing yaw after reaching goal2: "<< this->facingYaw_<<endl;
 			if (this->vpPlanner_->getNewGoal(goal, needGlobalPlan,noYawTurning,yaw)){
 				this->goal_ = goal;
 				// cout<<"new goal is : "<< goal.pose.position.x<<","<< goal.pose.position.y<<","<< goal.pose.position.z<<endl;
@@ -968,16 +862,18 @@ namespace AutoFlight{
 				if (not this->goalReceived_){
 					this->goalReceived_ = true;
 				}
+				return;
 			}
 			else{
+				cout<<"looking for the next goal..."<<endl;
 				return;
 			}
 		}
 		else if (this->goalReplan_){
-			cout<<"goal collision, replan"<<endl;
+			cout<<"Goal collision, replan"<<endl;
 			bool replanSuccess = this->vpPlanner_->getNewReplanGoal(goal, needGlobalPlan,noYawTurning,yaw);
 			if (replanSuccess){
-				cout<<"replan success"<<endl;
+				cout<<"Replan success"<<endl;
 				this->goalReplan_ = false;
 				this->goal_ = goal;
 				this->useGlobalPlanner_ = needGlobalPlan;
@@ -990,9 +886,10 @@ namespace AutoFlight{
 				if (not this->goalReceived_){
 					this->goalReceived_ = true;
 				}
+				return;
 			}
 			else{
-				cout<<"next segment"<<endl;
+				cout<<"Next segment"<<endl;
 				if (this->vpPlanner_->getNewGoal(goal, needGlobalPlan,noYawTurning,yaw)){
 					this->goalReplan_ = false;
 					this->goal_ = goal;
@@ -1006,6 +903,7 @@ namespace AutoFlight{
 					if (not this->goalReceived_){
 						this->goalReceived_ = true;
 					}
+					return;
 				}
 				else{
 					return;
@@ -1101,10 +999,10 @@ namespace AutoFlight{
 	double viewpointInspection::getViewAngle(){
 		map_manager::RayCast raycastSrv;
 		raycastSrv.request.hres = 1.0;                // Horizontal resolution
-		raycastSrv.request.vfov_min = -10.0;          // Vertical FOV minimum
-		raycastSrv.request.vfov_max = 10.0;           // Vertical FOV maximum
-		raycastSrv.request.vbeams = 10;               // Number of vertical beams
-		raycastSrv.request.range = 5.0;               // Maximum range
+		raycastSrv.request.vfov_min = -21.0;          // Vertical FOV minimum
+		raycastSrv.request.vfov_max = 21.0;           // Vertical FOV maximum
+		raycastSrv.request.vbeams = 20;               // Number of vertical beams
+		raycastSrv.request.range = 3.0;               // Maximum range
 		raycastSrv.request.position.x = this->currPos_(0);          // Start position x
 		raycastSrv.request.position.y = this->currPos_(1);          // Start position y
 		raycastSrv.request.position.z = this->currPos_(2);          // Start position z
@@ -1118,15 +1016,15 @@ namespace AutoFlight{
 		std::vector<Eigen::Vector2i> inaccessibleIdx;
 		this->vpPlanner_->getInaccessibleView(inaccessibleIdx);
 		double angle;
-		if (inaccessibleIdx.size()>0){
-			this->vpPlanner_->updateInaccessibleView(inaccessibleIdx);
-
-			angle = this->vpPlanner_->updateViewAngle(hitPoints,this->facingYaw_);
+		cout<<"inaccessible view size: "<<inaccessibleIdx.size()<<endl;
+		// if (inaccessibleIdx.size()>0){
+		angle = this->vpPlanner_->updateViewAngle(hitPoints,this->facingYaw_);
 			
-		}
-		else{
-			angle = this->facingYaw_;
-		}
+		// }
+		// else{
+		// 	cout<<"No inaccessible view, keep previous yaw"<<endl;
+		// 	angle = this->facingYaw_;
+		// }
 		return angle;
 	}
 

@@ -466,22 +466,17 @@ namespace AutoFlight{
 		ps.pose.orientation = orientation;
 
 		double yawDiff = yawTgt - yawCurr; // difference between yaw
-		double direction = 0;
-		double yawDiffAbs = std::abs(yawDiff);
-		if ((yawDiffAbs <= PI_const) and (yawDiff>0)){
-			direction = 1.0; // counter clockwise
+		if (yawDiff > PI_const){
+			yawDiff -= 2 * PI_const;
 		} 
-		else if ((yawDiffAbs <= PI_const) and (yawDiff<0)){
-			direction = -1.0; // clockwise
-		}
-		else if ((yawDiffAbs > PI_const) and (yawDiff>0)){
-			direction = -1.0; // rotate in clockwise direction
-			yawDiffAbs = 2 * PI_const - yawDiffAbs;
-		}
-		else if ((yawDiffAbs > PI_const) and (yawDiff<0)){
-			direction = 1.0; // counter clockwise
-			yawDiffAbs = 2 * PI_const - yawDiffAbs;
-		}
+		if (yawDiff < -PI_const){ 
+			yawDiff += 2 * PI_const;
+		} 
+		cout<<"target yaw: "<< yawTgt<<endl;
+		cout<<"current yaw: "<< yawCurr<<endl;
+		cout<<"yaw difference: "<< yawDiff<<endl;
+		double yawDiffAbs = std::abs(yawDiff);
+		double direction = (yawDiff > 0) ? 1.0 : -1.0;
 
 		double endTime = yawDiffAbs/desiredAngularVel;
 		tracking_controller::Target target;
@@ -499,6 +494,7 @@ namespace AutoFlight{
 			}
 			else{
 				double currYawTgt = yawCurr + (double) direction * t/endTime * yawDiffAbs;
+				// cout<<"current target yaw: "<< currYawTgt<<endl;
 				geometry_msgs::Quaternion quatT = AutoFlight::quaternion_from_rpy(0, 0, currYawTgt);
 				psT.pose.orientation = quatT;
 				
@@ -527,33 +523,29 @@ namespace AutoFlight{
 	}
 
 	bool flightBase::isReach(const geometry_msgs::PoseStamped& poseTgt, bool useYaw){
-		double targetX, targetY, targetZ, targetYaw, currX, currY, currZ, currYaw;
-		targetX = poseTgt.pose.position.x;
-		targetY = poseTgt.pose.position.y;
-		targetZ = poseTgt.pose.position.z;
-		targetYaw = AutoFlight::rpy_from_quaternion(poseTgt.pose.orientation);
-		currX = this->odom_.pose.pose.position.x;
-		currY = this->odom_.pose.pose.position.y;
-		currZ = this->odom_.pose.pose.position.z;
-		currYaw = AutoFlight::rpy_from_quaternion(this->odom_.pose.pose.orientation);
-		
-		bool reachX, reachY, reachZ, reachYaw;
-		reachX = std::abs(targetX - currX) < 0.1;
-		reachY = std::abs(targetY - currY) < 0.1;
-		reachZ = std::abs(targetZ - currZ) < 0.15;
-		if (useYaw){
-			reachYaw = std::abs(targetYaw - currYaw) < 0.1;
+		double targetX = poseTgt.pose.position.x;
+		double targetY = poseTgt.pose.position.y;
+		double targetZ = poseTgt.pose.position.z;
+		double targetYaw = AutoFlight::rpy_from_quaternion(poseTgt.pose.orientation);
+		// cout<<"target yaw: "<< targetYaw<<endl;
+
+		double currX = this->odom_.pose.pose.position.x;
+		double currY = this->odom_.pose.pose.position.y;
+		double currZ = this->odom_.pose.pose.position.z;
+		double currYaw = AutoFlight::rpy_from_quaternion(this->odom_.pose.pose.orientation);
+		// cout<<"current yaw: "<< currYaw<<endl;
+
+		bool reachX = std::abs(targetX - currX) < 0.1;
+		bool reachY = std::abs(targetY - currY) < 0.1;
+		bool reachZ = std::abs(targetZ - currZ) < 0.15;
+
+		bool reachYaw = true;
+		if (useYaw) {
+			double yawErr = targetYaw - currYaw;
+			reachYaw = std::abs(yawErr) < 0.1;   // 0.1 rad ≈ 5.7°
 		}
-		else{
-			reachYaw = true;
-		}
-		// cout << reachX << reachY << reachZ << reachYaw << endl;
-		if (reachX and reachY and reachZ and reachYaw){
-			return true;
-		}
-		else{
-			return false;
-		}
+
+		return reachX && reachY && reachZ && reachYaw;
 	}
 
 	bool flightBase::isReach(const geometry_msgs::PoseStamped& poseTgt, double dist, bool useYaw){
