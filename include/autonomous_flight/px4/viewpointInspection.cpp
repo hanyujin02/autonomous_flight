@@ -627,6 +627,7 @@ namespace AutoFlight{
 					}
 					this->isTurningReplan_ = true;
 					this->moveToOrientation(yaw, this->desiredAngularVel_);
+					this->lastYaw_ = yaw;
 					this->isTurningReplan_ = false;
 					this->firstTimeSave_ = true;
 					this->mpcReplan_ = true;
@@ -693,6 +694,7 @@ namespace AutoFlight{
 				}
 				this->isTurningReplan_ = true;
 				this->moveToOrientation(yaw, this->desiredAngularVel_);
+				this->lastYaw_ = yaw;
 				this->isTurningReplan_ = false;
 				this->firstTimeSave_ = true;
 				this->bsplineReplan_ = true;
@@ -756,6 +758,7 @@ namespace AutoFlight{
 				}
 				this->isTurningReplan_ = true;
 				this->moveToOrientation(yaw, this->desiredAngularVel_);
+				this->lastYaw_ = yaw;
 				this->isTurningReplan_ = false;
 				// cout<<"facing yaw after new goal2: "<< this->facingYaw_<<endl;
 				this->firstTimeSave_ = true;
@@ -846,6 +849,7 @@ namespace AutoFlight{
 			}
 			this->isTurningGoal_ = true;
 			this->moveToOrientation(this->facingYaw_, this->desiredAngularVel_);
+			this->lastYaw_ = this->facingYaw_;
 			this->isTurningGoal_ = false;
 			// cout<<"facing yaw after reaching goal2: "<< this->facingYaw_<<endl;
 			if (this->vpPlanner_->getNewGoal(goal, needGlobalPlan,noYawTurning,yaw)){
@@ -972,7 +976,13 @@ namespace AutoFlight{
 			else{
 				if (this->useYawControl_ && this->noYawTurning_){
 					cout<<"get view angle"<<endl;
-					target.yaw = this->getViewAngle();
+					double updatedYaw = this->getViewAngle();
+					
+					double dt = 0.01;
+					double timeConstant = 0.5;
+					double alpha = dt / (timeConstant + dt);
+					double cmd_yaw = AutoFlight::wrap(this->lastYaw_ + alpha * AutoFlight::wrap(updatedYaw - this->lastYaw_));
+					target.yaw = cmd_yaw;
 					cout<<"previous yaw: "<<this->facingYaw_<<endl;
 					cout<<"current yaw: "<<target.yaw<<endl;
 				}
@@ -982,6 +992,7 @@ namespace AutoFlight{
 				else{
 					target.yaw = atan2(this->goal_.pose.position.y - this->odom_.pose.pose.position.y, this->goal_.pose.position.x - this->odom_.pose.pose.position.x);
 				}	
+				this->lastYaw_ = target.yaw;
 				target.position.x = pos(0);
 				target.position.y = pos(1);
 				target.position.z = pos(2);

@@ -10,5 +10,5 @@
 	
 	<node pkg="tracking_controller" type="tracking_controller_node" name="tracking_controller_node" output="screen" />
 	<node pkg="autonomous_flight" type="viewpoint_inspection_node" name="viewpoint_inspection_node" output="screen" />
-	<node pkg="onboard_detector" type="yolo_detector_node.py" name="yolo_detector_node" output="screen" />
+	<!-- <node pkg="onboard_detector" type="yolo_detector_node.py" name="yolo_detector_node" output="screen" /> -->
 </launch>

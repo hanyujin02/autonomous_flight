@@ -177,5 +177,13 @@ namespace AutoFlight{
         }
         return quat;
     }
+
+    inline double wrap(double a)
+    {
+        a = std::fmod(a + M_PI, 2.0 * M_PI);
+        if (a < 0)
+            a += 2.0 * M_PI;
+        return a - M_PI;
+    }
 }
 #endif
