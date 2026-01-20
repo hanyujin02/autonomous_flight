@@ -485,7 +485,8 @@ namespace AutoFlight{
 		ros::Time startTime = ros::Time::now();
 		ros::Time currTime = ros::Time::now();
 		ros::Rate r (200);
-		while (ros::ok() and not this->isReach(ps)){
+		double reachDist = 0.3;
+		while (ros::ok() and not this->isReach(ps, reachDist)){
 			currTime = ros::Time::now();
 			double t = (currTime - startTime).toSec();
 
@@ -564,7 +565,7 @@ namespace AutoFlight{
 		reachY = std::abs(targetY - currY) < dist;
 		reachZ = std::abs(targetZ - currZ) < dist;
 		if (useYaw){
-			reachYaw = std::abs(targetYaw - currYaw) < 0.1;
+			reachYaw = std::abs(targetYaw - currYaw) < 0.3;
 		}
 		else{
 			reachYaw = true;

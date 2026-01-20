@@ -217,6 +217,7 @@ namespace AutoFlight{
 
 		if (this->useMPCPlanner_){
 			this->mpc_.reset(new trajPlanner::mpcPlanner (this->nh_));
+			this->mpc_->setTakeOffHeight(this->takeoffHgt_);
 			if (this->useBsplinePlanner_){
 				this->mpc_->updateMaxVel(this->desiredVel_);
 			}

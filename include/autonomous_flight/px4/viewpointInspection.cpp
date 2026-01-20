@@ -164,6 +164,7 @@ namespace AutoFlight{
 
 		if (this->useMPCPlanner_){
 			this->mpc_.reset(new trajPlanner::mpcPlanner (this->nh_));
+			this->mpc_->setTakeOffHeight(this->takeoffHgt_);
 			if (this->useBsplinePlanner_){
 				this->mpc_->updateMaxVel(this->desiredVel_);
 			}
@@ -185,6 +186,10 @@ namespace AutoFlight{
 	}
 
 	void viewpointInspection::initViewpoints(){
+		cout << "[AutoFlight]: Press ENTER to Start Inspection." << endl;
+		std::cin.clear();
+		fflush(stdin);
+		std::cin.get();
 		// this->viewpoints_ = this->vpPlanner_->getViewpoints();
 		// // Init Viewpoints Indices
 		// this->vpIdx_.clear();
@@ -517,6 +522,15 @@ namespace AutoFlight{
 				bool planSuccess = this->bsplineTraj_->makePlan(bsplineTrajMsgTemp);
 				if (planSuccess){
 					this->bsplineTrajMsg_ = bsplineTrajMsgTemp;
+					cout << "Ref traj size: " << this->bsplineTrajMsg_.poses.size() << endl;
+					if (this->bsplineTrajMsg_.poses.size() < 2){
+						cout << "[AutoFlight]: Trajectory generation fails. Trajectory too short." << endl;
+						this->bsplineTrajectoryReady_ = false;
+						this->refTrajReady_ = false;
+						this->stop();
+						this->bsplineReplan_ = true;
+						return;
+					}
 					if (this->plannerType_ == PLANNER::BSPLINE){
 						this->trajStartTime_ = ros::Time::now();
 					}
@@ -817,7 +831,7 @@ namespace AutoFlight{
 					cout << "[AutoFlight]: Collision detected. MPC replan." << endl;
 					return;
 				}
-				else if (AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) <= 0.3){
+				else if (AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) <= 0.5){
 					this->mpcReplan_ = false;
 					this->mpcTrajectoryReady_ = false;
 					ros::Rate r(200);
@@ -841,7 +855,7 @@ namespace AutoFlight{
 		bool noYawTurning;
 		double yaw;
 		// regular goal replan
-		if (AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) <= 0.3){
+		if (AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) <= 0.5){
 			// cout<<"Goal reached, replan"<<endl;
 			// cout<<"facing yaw after reaching goal1: "<< this->facingYaw_<<endl;
 			if (this->isTurningReplan_){
@@ -857,6 +871,10 @@ namespace AutoFlight{
 				// cout<<"new goal is : "<< goal.pose.position.x<<","<< goal.pose.position.y<<","<< goal.pose.position.z<<endl;
 				// cout<<"yaw: "<<yaw<<endl;
 				this->useGlobalPlanner_ = needGlobalPlan;
+				if(AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) <= 2.0){
+					cout<<"goal close, dont global plan"<<endl;
+					this->useGlobalPlanner_ = false;
+				}
 				this->noYawTurning_ = noYawTurning;
 				this->facingYaw_ = yaw;
 				if (not this->firstGoal_){
@@ -881,6 +899,10 @@ namespace AutoFlight{
 				this->goalReplan_ = false;
 				this->goal_ = goal;
 				this->useGlobalPlanner_ = needGlobalPlan;
+				if(AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) <= 2.0){
+					cout<<"goal close, dont global plan"<<endl;
+					this->useGlobalPlanner_ = false;
+				}
 				this->noYawTurning_ = noYawTurning;
 				this->facingYaw_ = yaw;
 				if (not this->firstGoal_){
@@ -898,6 +920,10 @@ namespace AutoFlight{
 					this->goalReplan_ = false;
 					this->goal_ = goal;
 					this->useGlobalPlanner_ = needGlobalPlan;
+					if(AutoFlight::getPoseDistance(this->odom_.pose.pose, this->goal_.pose) <= 2.0){
+						cout<<"goal close, dont global plan"<<endl;
+						this->useGlobalPlanner_ = false;
+					}
 					this->noYawTurning_ = noYawTurning;
 					this->facingYaw_ = yaw;
 					if (not this->firstGoal_){
